@@ -51,7 +51,7 @@ jobs:
           echo "latest_tag=$tag" >> "$GITHUB_OUTPUT"
           echo "download_url=$url" >> "$GITHUB_OUTPUT"
 
-      - name: Restore last checked version
+      - name: Restore last built version
         id: version-cache
         uses: actions/cache/restore@v4
         with:
@@ -84,7 +84,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            cmake ninja-build 7zip unzip curl \
+            cmake ninja-build unzip curl \
             libx11-dev libxcursor-dev libxi-dev libxrandr-dev \
             libgl1-mesa-dev libfontconfig1-dev libfreetype6-dev
 
@@ -129,20 +129,13 @@ jobs:
         working-directory: aseprite/build
         run: ninja aseprite
 
-      - name: Package
-        working-directory: aseprite/build/bin
-        env:
-          TAG: ${{ needs.check-version.outputs.latest_tag }}
-        run: |
-          set -euo pipefail
-          7zz a "$GITHUB_WORKSPACE/Aseprite-${TAG}-Linux.zip" \
-            aseprite data
-
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: Aseprite-${{ needs.check-version.outputs.latest_tag }}-Linux
-          path: Aseprite-${{ needs.check-version.outputs.latest_tag }}-Linux.zip
+          path: |
+            aseprite/build/bin/aseprite
+            aseprite/build/bin/data
           if-no-files-found: error
           retention-days: 30
 
