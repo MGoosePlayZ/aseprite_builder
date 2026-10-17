@@ -33,10 +33,14 @@ jobs:
       - name: Get latest release information
         id: version
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
           data=$(curl -fsSL \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/aseprite/aseprite/releases/latest)
 
           tag=$(jq -er '.tag_name' <<< "$data")
