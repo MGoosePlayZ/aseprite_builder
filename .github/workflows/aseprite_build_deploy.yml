@@ -15,7 +15,7 @@ on:
         default: true
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   BUILD_TYPE: Release
@@ -69,26 +69,6 @@ jobs:
             echo "should_build=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Save checked version
-        if: steps.decision.outputs.should_build == 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: .aseprite-version
-          key: aseprite-version-${{ steps.version.outputs.latest_tag }}
-
-      - name: Create draft release
-        if: steps.decision.outputs.should_build == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.latest_tag }}
-        run: |
-          gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "Aseprite $TAG" \
-              --notes "Unofficial community build of Aseprite $TAG." \
-              --draft
-
   build-aseprite:
     name: Build Aseprite (Linux)
     needs: check-version
@@ -101,8 +81,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             cmake ninja-build 7zip unzip curl \
-            libxcursor-dev libxi-dev libgl1-mesa-dev \
-            libfontconfig1-dev libfreetype6-dev
+            libx11-dev libxcursor-dev libxi-dev libxrandr-dev \
+            libgl1-mesa-dev libfontconfig1-dev libfreetype6-dev
 
       - name: Restore Skia cache
         id: skia-cache
@@ -152,14 +132,23 @@ jobs:
         run: |
           set -euo pipefail
           7zz a "$GITHUB_WORKSPACE/Aseprite-${TAG}-Linux.zip" \
-            aseprite
+            aseprite data
 
-      - name: Upload release asset
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.check-version.outputs.latest_tag }}
-        run: |
-          gh release upload "$TAG" \
-            "$GITHUB_WORKSPACE/Aseprite-${TAG}-Linux.zip" \
-            --repo "$GITHUB_REPOSITORY" \
-            --clobber
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aseprite-${{ needs.check-version.outputs.latest_tag }}-Linux
+          path: Aseprite-${{ needs.check-version.outputs.latest_tag }}-Linux.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      # Mark version as built only after a successful build,
+      # so a failed build retries on the next run.
+      - name: Record built version
+        run: echo "${{ needs.check-version.outputs.latest_tag }}" > .aseprite-version
+
+      - name: Save built version
+        uses: actions/cache/save@v4
+        with:
+          path: .aseprite-version
+          key: aseprite-version-${{ needs.check-version.outputs.latest_tag }}
